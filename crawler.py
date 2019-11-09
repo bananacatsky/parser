@@ -83,5 +83,5 @@ if len(sys.argv) == 2:
     root = sys.argv[1]
     crawler(root)
 else:
-    logging.critical("Укажите в качестве аргумента ссылку на сайт для парсинга")
+    logging.critical("Укажите в качестве единственного аргумента ссылку на сайт для парсинга")
     exit(1)
