@@ -1,87 +1,99 @@
 """
 Программе в качестве аргумента передаётся ссылка на сайт,
-который она обходит и извлекает данные проксируя через гуглкэш
+который она обходит и извлекает данные с возможностью
+проксирования через гуглкэш
+
+Usage:
+    crawler.py <url> [options]
+
+Options:
+    -h --help               справка
+    --use-google-cache      использовать гуглкэш для парсинга сайта
+    --root-url=URL          не выходить за рамки указанной ссылки (по умолчанию совпадает с первой ссылкой)
+    --output-file=FILE      сохранять извлеченные данные в указанный файл [default: output.txt]
+    --regex=REGEX           извлекать из страниц указанное регулярное выражение и сохранять в файл [default: <title>.*</title>]
+    --max-count=NUMBER      перейти не более чем по указанному числу ссылок [default: ]
+    --logging=LEVEL         уровень логгирования программы [default: DEBUG]
+    --not-found=STRING      считать страницу не найденной, если в html присутствует указанная строка [default: Error 404 (Not Found)]
 """
+from docopt import docopt
 import urllib.parse as up
 import re
 import requests
 import logging
-import sys
 
 
-def extract_data(html):
-    reg = r'<td>(.*?)</td>'
-    data = re.findall(reg, html, re.S)
-    data = [data[i:i + 7] for i in range(0, len(data), 7)]
-    # print(data)
-    # data = [[] for i in range(len( ]
-    with open(r'C:\Users\Restricted\Desktop\table.txt', 'a') as f:
-        for name, phone_number, birth_date, street, house, building, flat in data:
-            f.write(' | '.join((name, phone_number, birth_date.strip(), street, house, building, flat)) + '\n\n')
-            print(name, phone_number, birth_date.strip(), street, house, building, flat)
+def extract_data(html, regex_string, output_file):
+    data = re.findall(regex_string, html, re.IGNORECASE | re.DOTALL)
+    with open(output_file, 'a') as f:
+        for line in data:
+            f.write(line)
+            f.write('\n')
+            logging.info(line)
 
 
 def find_links(html):
-    links = set()
     reg = r'''href\s*=\s*['"](.+?)['"]'''  # check greedy
     result = set(re.findall(reg, html))
-    # print(result)
     return result
 
 
-assert find_links("""
-<a href="/uy">
-""") == {"/uy"}
+def get_html(url, use_google_cache, not_found_text):
+    if use_google_cache:
+        response = requests.get(google_cache_pattern + url)
+    else:
+        response = requests.get(url)
 
-
-def get_html(url):
-    response = requests.get(google_cache_pattern + url)
     html = response.text
 
     if response.status_code == 200:
-        # print(html)
-        if 'Error 404 (Not Found)!!' in html:
-            logging.error(f"в гугл кэше такого нет {response.status_code} {url}")
+        if not_found_text in html:
+            logging.error(f"PAGE HAS NOT FOUND TEXT: {response.status_code} {url}")
             html = ''
+        else:
+            logging.debug(url, response.status_code)
 
     else:
-        logging.error(html)
         logging.error(f"{response.status_code} {url}")
+        logging.debug(html)
         html = ''
-    print(url, response.status_code)
+
     return html
 
 
 def abs_links(list_of_links, base_url):
     for rel in list_of_links:
         full = up.urljoin(base_url, rel)
-        # print('abs_link', rel, base_url, full)
         yield full
 
 
-visited = set()
-root = ''
-google_cache_pattern = r'http://webcache.googleusercontent.com/search?q=cache:'
+def crawler(root, url, use_google_cache, not_found_text, regex_string, output_file, max_count):
+    if max_count and len(visited) > max_count:
+        return
 
-
-def crawler(url):
-    print(url)
-    # url = google_cache_pattern + url
-    html = get_html(url)
-    # print(html)
-    extract_data(html)
+    logging.info(url)
+    html = get_html(url, use_google_cache, not_found_text)
+    extract_data(html, regex_string, output_file)
     links = find_links(html)
     for l in abs_links(links, url):
         if l.startswith(root):
-            # l = google_cache_pattern + l
             if l not in visited:
                 visited.add(l)
-                crawler(l)
+                crawler(root, l, use_google_cache, not_found_text, regex_string, output_file, max_count)
 
 
-if len(sys.argv) == 2:
-    root = sys.argv[1]
-    crawler(root)
-else:
-    logging.critical("Укажите в качестве единственного аргумента ссылку на сайт для парсинга")
-    exit(1)
+visited = set()
+google_cache_pattern = r'http://webcache.googleusercontent.com/search?q=cache:'
+
+if __name__ == "__main__":
+    args = docopt(__doc__)
+    logging.basicConfig(level=getattr(logging, args["--logging"]))
+    crawler(
+        root=args["--root-url"] or args["<url>"],
+        url=args["<url>"],
+        use_google_cache=args["--use-google-cache"],
+        not_found_text=args["--not-found"],
+        regex_string=args["--regex"],
+        output_file=args["--output-file"],
+        max_count=int(args["--max-count"] or 0),
+    )
