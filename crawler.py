@@ -13,7 +13,7 @@ Options:
     --output-file=FILE      сохранять извлеченные данные в указанный файл [default: output.txt]
     --regex=REGEX           извлекать из страниц указанное регулярное выражение и сохранять в файл [default: <title>.*</title>]
     --max-count=NUMBER      перейти не более чем по указанному числу ссылок [default: ]
-    --logging=LEVEL         уровень логгирования программы [default: DEBUG]
+    --logging=LEVEL         уровень логгирования программы [default: INFO]
     --not-found=STRING      считать страницу не найденной, если в html присутствует указанная строка [default: Error 404 (Not Found)]
 """
 from docopt import docopt
@@ -25,7 +25,7 @@ import logging
 
 def extract_data(html, regex_string, output_file):
     data = re.findall(regex_string, html, re.IGNORECASE | re.DOTALL)
-    with open(output_file, 'a') as f:
+    with open(output_file, 'a', encoding='utf-8') as f:
         for line in data:
             f.write(line)
             f.write('\n')
